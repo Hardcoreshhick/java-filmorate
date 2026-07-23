@@ -32,6 +32,10 @@ public class UserController {
     @ResponseStatus(HttpStatus.CREATED)
     public User create(@Valid @RequestBody User user) {
         log.info("Запрос на добавление пользователя: {}", user);
+
+        if (user.getName() == null || user.getName().isBlank()) {
+            user.setName(user.getLogin());
+        }
         user.setId(nextId++);
         users.put(user.getId(), user);
         log.info("Пользователь добавлен: id={}, login={}", user.getId(), user.getLogin());
