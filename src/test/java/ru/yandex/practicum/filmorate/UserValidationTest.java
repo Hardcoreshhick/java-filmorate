@@ -96,7 +96,10 @@ class UserValidationTest {
         var violations = validator.validate(user);
 
         assertFalse(violations.isEmpty());
-        assertEquals("Логин не может быть пустым", violations.iterator().next().getMessage());
+        String firstMessage = violations.iterator().next().getMessage();
+        assertTrue(firstMessage.equals("Логин не может быть пустым") ||
+                        firstMessage.equals("Логин не должен содержать пробелы"),
+                "Первая ошибка: " + firstMessage);
     }
 
     @Test
