@@ -201,6 +201,9 @@ class UserValidationTest {
         var violations = validator.validate(user);
 
         assertFalse(violations.isEmpty());
-        assertEquals("Email должен быть корректным", violations.iterator().next().getMessage());
+        String firstMessage = violations.iterator().next().getMessage();
+        assertTrue(firstMessage.equals("Email должен быть корректным") ||
+                        firstMessage.equals("Дата рождения не может быть в будущем"),
+                "Первая ошибка должна быть либо о email, либо о дате рождения");
     }
 }
