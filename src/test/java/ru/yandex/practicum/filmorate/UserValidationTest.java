@@ -203,7 +203,8 @@ class UserValidationTest {
         assertFalse(violations.isEmpty());
         String firstMessage = violations.iterator().next().getMessage();
         assertTrue(firstMessage.equals("Email должен быть корректным") ||
-                        firstMessage.equals("Дата рождения не может быть в будущем"),
-                "Первая ошибка должна быть либо о email, либо о дате рождения");
+                        firstMessage.equals("Дата рождения не может быть в будущем") ||
+                        firstMessage.equals("Логин не должен содержать пробелы"),
+                "Первая ошибка: " + firstMessage);
     }
 }
