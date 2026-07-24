@@ -19,7 +19,7 @@ public class Film {
     @Size(max = 200, message = "Описания не может быть длиннее 200 символов")
     private String description;
 
-    @MinimumDate
+    @MinimumDate()
     private LocalDate releaseDate;
 
     @NotNull(message = "Продолжительность должна быть указана")

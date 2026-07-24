@@ -1,8 +1,10 @@
 package ru.yandex.practicum.filmorate.controller;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.model.User;
@@ -15,6 +17,7 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/users")
 @Slf4j
+@Validated
 public class UserController {
 
     private final Map<Long, User> users = new HashMap<>();
@@ -43,7 +46,7 @@ public class UserController {
     }
 
     @PutMapping("/{id}")
-    public User update(@PathVariable Long id, @Valid @RequestBody User user) {
+    public User update(@PathVariable @Positive Long id, @Valid @RequestBody User user) {
         log.debug("Запрос на обновление пользователя с id={}: {}", id, user);
 
         User oldUser = Optional.ofNullable(users.get(id))

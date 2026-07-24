@@ -14,9 +14,8 @@ import java.lang.annotation.Target;
 @Constraint(validatedBy = MinimumDateValidator.class)
 @SuppressWarnings("unused")
 public @interface MinimumDate {
-    String message() default "Дата не может быть раньше 28 декабря 1895 года";
-
+    String message() default "Дата не может быть раньше указанной даты";
     Class<?>[] groups() default {};
-
     Class<? extends Payload>[] payload() default {};
+    String value() default "1895-12-28";
 }
