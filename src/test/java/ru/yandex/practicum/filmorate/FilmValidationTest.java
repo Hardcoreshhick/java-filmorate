@@ -119,7 +119,7 @@ class FilmValidationTest {
         var violations = validator.validate(film);
 
         assertFalse(violations.isEmpty());
-        assertEquals("Дата не может быть раньше 28 декабря 1895 года",
+        assertEquals("Дата не может быть раньше указанной даты",
                 violations.iterator().next().getMessage());
     }
 
