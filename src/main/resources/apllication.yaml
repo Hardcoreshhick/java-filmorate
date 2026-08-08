@@ -1,0 +1,14 @@
+spring:
+  main:
+    log-startup-info: false
+  output:
+    ansi:
+      enabled: ALWAYS
+
+filmorate:
+  popular:
+    default-count: 10
+
+logging:
+  level:
+    org.zalando.logbook: TRACE

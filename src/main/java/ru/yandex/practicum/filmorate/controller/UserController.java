@@ -6,85 +6,111 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-import ru.yandex.practicum.filmorate.exception.NotFoundException;
+import ru.yandex.practicum.filmorate.exception.ValidationException;
 import ru.yandex.practicum.filmorate.model.User;
+import ru.yandex.practicum.filmorate.service.UserService;
 
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/users")
 @Slf4j
 @Validated
 public class UserController {
+    private final UserService userService;
 
-    private final Map<Long, User> users = new HashMap<>();
-    private long nextId = 1;
+    public UserController(UserService userService) {
+        this.userService = userService;
+    }
 
     @GetMapping
+    @ResponseStatus(HttpStatus.OK)
     public Collection<User> findAll() {
         log.debug("Запрос на получение всех пользователей");
-        Collection<User> result = users.values();
-        log.info("Возвращено {} пользователей", result.size());
-        return result;
+        return userService.findAll();
+    }
+
+    @GetMapping("/{id}")
+    public User findById(@PathVariable @Positive Long id) {
+        log.debug("Запрос на получение пользователя с id={}", id);
+        return userService.findById(id);
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public User create(@Valid @RequestBody User user) {
-        log.info("Запрос на добавление пользователя: {}", user);
-
-        if (user.getName() == null || user.getName().isBlank()) {
-            user.setName(user.getLogin());
-        }
-        user.setId(nextId++);
-        users.put(user.getId(), user);
-        log.info("Пользователь добавлен: id={}, login={}", user.getId(), user.getLogin());
-        return user;
+        log.info("Запрос на создание пользователя: {}", user.getLogin());
+        return userService.create(user);
     }
 
     @PutMapping("/{id}")
-    public User update(@PathVariable @Positive Long id, @Valid @RequestBody User user) {
-        log.debug("Запрос на обновление пользователя с id={}: {}", id, user);
-
-        User oldUser = Optional.ofNullable(users.get(id))
-                .orElseThrow(() -> {
-                    log.warn("Попытка обновить несуществующего пользователя с id={}", id);
-                    return new NotFoundException("Пользователь с id=" + id + " не найден");
-                });
-
-        oldUser.setEmail(user.getEmail());
-        oldUser.setLogin(user.getLogin());
-        oldUser.setName(user.getName());
-        oldUser.setBirthday(user.getBirthday());
-
-        log.info("Пользователь обновлён: id={}, login={}", id, oldUser.getLogin());
-        return oldUser;
+    @ResponseStatus(HttpStatus.OK)
+    public User update(
+            @PathVariable @Positive Long id,
+            @Valid @RequestBody User user
+    ) {
+        log.info("Запрос на обновление пользователя с id={}", id);
+        user.setId(id);
+        User updated = userService.update(user);
+        log.info("Пользователь с id={} обновлён", id);  // ← добавить
+        return updated;
     }
 
     /**
      * Обновляет пользователя по id из тела запроса.
-     * Костыль для совместимости с Postman-коллекцией, где PUT /users без id в URL.
+     * Этот метод существует для обратной совместимости с тестами Postman,
+     * которые отправляют PUT /users без id в пути.
+     * В REST-стандарте правильным является PUT /users/{id}.
      */
     @PutMapping
     public User updateWithoutId(@Valid @RequestBody User user) {
-        log.debug("Запрос на обновление пользователя без id в пути: {}", user);
-
         if (user.getId() == null) {
-            throw new NotFoundException("Id должен быть указан");
+            throw new ValidationException("Id должен быть указан");
         }
-
-        User oldUser = Optional.ofNullable(users.get(user.getId()))
-                .orElseThrow(() -> new NotFoundException("Пользователь с id=" + user.getId() + " не найден"));
-
-        oldUser.setEmail(user.getEmail());
-        oldUser.setLogin(user.getLogin());
-        oldUser.setName(user.getName());
-        oldUser.setBirthday(user.getBirthday());
-
-        log.info("Пользователь обновлён: id={}, login={}", user.getId(), oldUser.getLogin());
-        return oldUser;
+        return userService.update(user);
     }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable @Positive Long id) {
+        log.info("Запрос на удаление пользователя с id={}", id);
+        userService.delete(id);
+    }
+
+    @PutMapping("/{id}/friends/{friendId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void addFriend(
+            @PathVariable @Positive Long id,
+            @PathVariable @Positive Long friendId
+    ) {
+        log.debug("Пользователь {} добавляет в друзья {}", id, friendId);
+        userService.addFriend(id, friendId);
+    }
+
+    @DeleteMapping("/{id}/friends/{friendId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void removeFriend(
+            @PathVariable @Positive Long id,
+            @PathVariable @Positive Long friendId
+    ) {
+        log.debug("Пользователь {} удаляет из друзей {}", id, friendId);
+        userService.removeFriend(id, friendId);
+    }
+
+    @GetMapping("/{id}/friends")
+    public Set<User> getFriends(@PathVariable @Positive Long id) {
+        log.debug("Запрос на получение друзей пользователя {}", id);
+        return userService.getFriends(id);
+    }
+
+    @GetMapping("/{id}/friends/common/{otherId}")
+    public Set<User> getCommonFriends(
+            @PathVariable @Positive Long id,
+            @PathVariable @Positive Long otherId
+    ) {
+        log.debug("Запрос на получение общих друзей пользователей {} и {}", id, otherId);
+        return userService.getCommonFriends(id, otherId);
+    }
+
 }
