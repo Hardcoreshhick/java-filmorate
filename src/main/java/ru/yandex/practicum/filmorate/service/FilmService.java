@@ -34,19 +34,14 @@ public class FilmService {
 
     public Film findById(Long id) {
         return filmStorage.findById(id)
-                .orElseThrow(() -> new FilmNotFoundException("Фильм с id=" + id + " не найден"));
+                .orElseThrow(() -> new NotFoundException("Фильм с id=" + id + " не найден"));
     }
 
     public Film create(Film film) {
         if (film.getName() == null || film.getName().isBlank()) {
             throw new ValidationException("Название фильма не может быть пустым");
         }
-        boolean exists = filmStorage.findAll().stream()
-                .anyMatch(f -> f.getName().equalsIgnoreCase(film.getName()));
-        if (exists) {
-            log.warn("Попытка создать фильм с уже существующим названием: {}", film.getName());
-            throw new DuplicatedDataException("Фильм с названием '" + film.getName() + "' уже существует");
-        }
+
         log.info("Создание фильма: {}", film.getName());
         return filmStorage.create(film);
     }
@@ -96,11 +91,11 @@ public class FilmService {
         findById(filmId);
 
         if (!likes.containsKey(filmId)) {
-            throw new DataNotFoundException("Лайк фильму " + filmId + " не найден");
+            throw new NotFoundException("Лайк фильму " + filmId + " не найден");
         }
         Set<Long> filmLikes = likes.get(filmId);
         if (!filmLikes.contains(userId)) {
-            throw new DataNotFoundException("Пользователь " + userId + " не ставил лайк фильму " + filmId);
+            throw new NotFoundException("Пользователь " + userId + " не ставил лайк фильму " + filmId);
         }
         filmLikes.remove(userId);
         cacheDirty = true;

@@ -17,14 +17,9 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class ErrorHandler {
 
-    @ExceptionHandler({
-            NotFoundException.class,
-            UserNotFoundException.class,
-            FilmNotFoundException.class,
-            DataNotFoundException.class
-    })
+    @ExceptionHandler(NotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
-    public ErrorResponse handleNotFound(RuntimeException e) {
+    public ErrorResponse handleNotFound(NotFoundException e) {
         log.warn("Не найдено: {}", e.getMessage());
         return new ErrorResponse(e.getMessage(), HttpStatus.NOT_FOUND.value());
     }

@@ -4,8 +4,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import ru.yandex.practicum.filmorate.exception.DuplicatedDataException;
-import ru.yandex.practicum.filmorate.exception.FilmNotFoundException;
+import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.exception.ValidationException;
 import ru.yandex.practicum.filmorate.model.Film;
 import ru.yandex.practicum.filmorate.model.User;
@@ -33,17 +32,6 @@ class FilmServiceTest {
     @Nested
     @DisplayName("Создание фильма")
     class CreateFilmTests {
-
-        @Test
-        @DisplayName("Создание с существующим названием выбрасывает исключение")
-        void shouldThrowIfNameExists() {
-            Film film1 = TestDataFactory.createDefaultFilm();
-            filmService.create(film1);
-
-            Film film2 = TestDataFactory.createDefaultFilm();
-
-            assertThrows(DuplicatedDataException.class, () -> filmService.create(film2));
-        }
 
         @Test
         @DisplayName("Создание с пустым названием выбрасывает исключение")
@@ -84,7 +72,7 @@ class FilmServiceTest {
             Film unknown = TestDataFactory.createDefaultFilm();
             unknown.setId(999L);
 
-            assertThrows(FilmNotFoundException.class, () -> filmService.update(unknown));
+            assertThrows(NotFoundException.class, () -> filmService.update(unknown));
         }
     }
 

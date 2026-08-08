@@ -25,7 +25,6 @@ public class UserController {
     }
 
     @GetMapping
-    @ResponseStatus(HttpStatus.OK)
     public Collection<User> findAll() {
         log.debug("Запрос на получение всех пользователей");
         return userService.findAll();
@@ -45,7 +44,6 @@ public class UserController {
     }
 
     @PutMapping("/{id}")
-    @ResponseStatus(HttpStatus.OK)
     public User update(
             @PathVariable @Positive Long id,
             @Valid @RequestBody User user

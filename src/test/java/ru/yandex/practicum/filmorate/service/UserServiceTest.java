@@ -5,7 +5,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import ru.yandex.practicum.filmorate.exception.DuplicatedDataException;
-import ru.yandex.practicum.filmorate.exception.UserNotFoundException;
+import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.model.User;
 import ru.yandex.practicum.filmorate.storage.user.InMemoryUserStorage;
 import ru.yandex.practicum.filmorate.util.TestDataFactory;
@@ -81,7 +81,7 @@ class UserServiceTest {
             User unknown = TestDataFactory.createDefaultUser();
             unknown.setId(999L);
 
-            assertThrows(UserNotFoundException.class, () -> userService.update(unknown));
+            assertThrows(NotFoundException.class, () -> userService.update(unknown));
         }
     }
 

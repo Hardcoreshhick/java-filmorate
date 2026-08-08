@@ -45,7 +45,6 @@ public class FilmController {
     }
 
     @PutMapping("/{id}")
-    @ResponseStatus(HttpStatus.OK)
     public Film update(@PathVariable @Positive Long id, @Valid @RequestBody Film film) {
         log.debug("Запрос на обновление фильма с id={}: {}", id, film);
         film.setId(id);
