@@ -8,6 +8,8 @@ import lombok.Data;
 import ru.yandex.practicum.filmorate.annotation.MinimumDate;
 
 import java.time.LocalDate;
+import java.util.HashSet;
+import java.util.Set;
 
 @Data
 public class Film {
@@ -25,4 +27,7 @@ public class Film {
     @NotNull(message = "Продолжительность должна быть указана")
     @Positive(message = "Продолжительность должна быть положительным числом")
     private Integer duration;
+
+    private Set<Genre> genres = new HashSet<>();
+    private MpaRating mpaRating;
 }
