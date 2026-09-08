@@ -39,6 +39,7 @@ public class UserDbStorage implements UserStorage {
             "SELECT * FROM users ORDER BY id";
     private static final String SQL_EXISTS_USER =
             "SELECT COUNT(*) FROM users WHERE id = ?";
+
     @Transactional
     @Override
     public User create(User user) {
