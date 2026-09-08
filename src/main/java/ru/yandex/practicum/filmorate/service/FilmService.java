@@ -18,6 +18,9 @@ import ru.yandex.practicum.filmorate.storage.user.UserStorage;
 
 import java.time.LocalDate;
 import java.util.Collection;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 @Slf4j
@@ -36,13 +39,17 @@ public class FilmService {
 
     public Collection<Film> findAll() {
         log.debug("Запрос всех фильмов");
-        return filmStorage.findAll();
+        Collection<Film> films = filmStorage.findAll();
+        films.forEach(film -> film.setGenres(genreStorage.getGenresForFilm(film.getId())));
+        return films;
     }
 
     public Film findById(Long id) {
         log.debug("Поиск фильма по id {}", id);
-        return filmStorage.findById(id)
+        Film film = filmStorage.findById(id)
                 .orElseThrow(() -> new NotFoundException("Фильм с id=" + id + " не найден"));
+        film.setGenres(genreStorage.getGenresForFilm(film.getId()));
+        return film;
     }
 
     @CacheEvict(value = "popularFilms", allEntries = true)
@@ -53,7 +60,15 @@ public class FilmService {
         validateReleaseDate(film);
         validateDuration(film);
         validateMpa(film);
-        return filmStorage.create(film);
+
+        Film created = filmStorage.create(film);
+
+        if (film.getGenres() != null && !film.getGenres().isEmpty()) {
+            genreStorage.addGenresToFilm(created.getId(), film.getGenres());
+        }
+
+        log.info("Создан фильм с id: {}", created.getId());
+        return created;
     }
 
     @CacheEvict(value = "popularFilms", allEntries = true)
@@ -64,7 +79,10 @@ public class FilmService {
             throw new ValidationException("id фильма должен быть указан");
         }
 
-        Film existing = findById(film.getId());
+        validateFilmExists(film.getId());
+        Film existing = filmStorage.findById(film.getId())
+                .orElseThrow(() -> new NotFoundException("Фильм с id " + film.getId() + " не найден"));
+
 
         if (film.getName() != null) {
             validateName(film);
@@ -86,6 +104,14 @@ public class FilmService {
             existing.setMpaRating(film.getMpaRating());
         }
 
+        if (film.getGenres() != null && !film.getGenres().isEmpty()) {
+            validateGenres(film);
+            genreStorage.deleteGenresFromFilm(film.getId());
+            genreStorage.addGenresToFilm(film.getId(), film.getGenres());
+        } else {
+            genreStorage.deleteGenresFromFilm(film.getId());
+        }
+
         log.info("Обновлён фильм с id: {}", film.getId());
         return filmStorage.update(existing);
     }
@@ -101,8 +127,10 @@ public class FilmService {
     @CacheEvict(value = "popularFilms", allEntries = true)
     public void addLike(long filmId, long userId) {
         log.debug("Пользователь {} ставит лайк фильму {}", userId, filmId);
+
         validateFilmExists(filmId);
         validateUserExists(userId);
+
         likeStorage.addLike(filmId, userId);
         log.debug("Пользователь {} поставил лайк фильму {} ", userId, filmId);
     }
@@ -122,7 +150,9 @@ public class FilmService {
             count = defaultPopularCount;
         }
         log.debug("Запрос популярных фильмов, count: {}", count);
-        return likeStorage.getPopular(count);
+        Collection<Film> films = likeStorage.getPopular(count);
+        films.forEach(film -> film.setGenres(genreStorage.getGenresForFilm(film.getId())));
+        return films;
     }
 
     private void validateFilmExists(Long id) {
@@ -165,12 +195,22 @@ public class FilmService {
     }
 
     private void validateGenres(Film film) {
-        if (film.getGenres() != null) {
-            for (Genre genre : film.getGenres()) {
-                if (genre.getId() != null && !genreStorage.exists(genre.getId())) {
-                    throw new NotFoundException("Жанр с id " + genre.getId() + " не найден");
-                }
-            }
+        if (film.getGenres() == null || film.getGenres().isEmpty()) {
+            return;
         }
+
+        Set<Integer> genreIds = film.getGenres().stream()
+                .map(Genre::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        if (genreIds.isEmpty()) {
+            return;
+        }
+
+        if (!genreStorage.existsAll(genreIds)) {
+            throw new NotFoundException("Один или несколько жанров не найдены");
+        }
+
     }
 }

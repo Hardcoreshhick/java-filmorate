@@ -143,8 +143,6 @@ class UserDbStorageTest {
         User created1 = userStorage.create(user1);
         User created2 = userStorage.create(user2);
 
-        // В UserDbStorage нет метода addFriend — это делается через FriendshipDbStorage
-        // Проверяем, что пользователи созданы
         assertThat(userStorage.findById(created1.getId())).isPresent();
         assertThat(userStorage.findById(created2.getId())).isPresent();
     }

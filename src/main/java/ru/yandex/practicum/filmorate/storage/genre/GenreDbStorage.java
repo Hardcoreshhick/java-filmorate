@@ -7,10 +7,8 @@ import org.springframework.stereotype.Repository;
 import ru.yandex.practicum.filmorate.mapper.GenreMapper;
 import ru.yandex.practicum.filmorate.model.Genre;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Repository
@@ -32,12 +30,17 @@ public class GenreDbStorage implements GenreStorage {
             "SELECT * FROM genres WHERE id = ?";
     private static final String SQL_EXISTS_GENRE =
             "SELECT COUNT(1) FROM genres WHERE id = ?";
+    private static final String SQL_EXISTS_GENRES_BY_IDS =
+            "SELECT COUNT(*) FROM genres WHERE id IN (%s)";
 
     @Override
     public void addGenresToFilm(long filmId, Set<Genre> genres) {
-        if (genres == null || genres.isEmpty()) return;
-        new HashSet<>(genres)
-                .forEach(genre -> jdbc.update(SQL_INSERT_FILM_GENRE, filmId, genre.getId()));
+       List<Object[]> batchArgs = new ArrayList<>();
+       for (Genre genre : genres) {
+           batchArgs.add(new Object[] { filmId, genre.getId() });
+       }
+
+       jdbc.batchUpdate(SQL_INSERT_FILM_GENRE, batchArgs);
         log.debug("Добавлены жанры для фильма id: {}", filmId);
     }
 
@@ -70,5 +73,28 @@ public class GenreDbStorage implements GenreStorage {
         log.debug("Проверка существования жанра с id: {}", id);
         Integer count = jdbc.queryForObject(SQL_EXISTS_GENRE, Integer.class, id);
         return count > 0;
+    }
+
+    @Override
+    public boolean existsAll(Set<Integer> genreIds) {
+        if (genreIds == null || genreIds.isEmpty()) {
+            return true;
+        }
+
+        Set<Integer> validIds = genreIds.stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        if (validIds.isEmpty()) {
+            return true;
+        }
+
+        String ids = validIds.stream().map(Object::toString).collect(Collectors.joining(","));
+
+        String sql = String.format(SQL_EXISTS_GENRES_BY_IDS, ids);
+
+        Integer count = jdbc.queryForObject(sql, Integer.class);
+
+        return count != null && count == validIds.size();
     }
 }

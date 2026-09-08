@@ -11,7 +11,6 @@ import ru.yandex.practicum.filmorate.exception.ValidationException;
 import ru.yandex.practicum.filmorate.mapper.UserMapper;
 import ru.yandex.practicum.filmorate.model.FriendshipStatus;
 import ru.yandex.practicum.filmorate.model.User;
-import ru.yandex.practicum.filmorate.storage.user.UserStorage;
 
 import java.util.Collection;
 
@@ -22,7 +21,6 @@ public class FriendshipDbStorage implements FriendshipStorage {
 
     private final JdbcTemplate jdbc;
     private final UserMapper userMapper;
-    private final UserStorage userStorage;
     private static final String SQL_INSERT_FRIEND =
             "INSERT INTO friends (user_id, friend_id, status) VALUES (?, ? , ?)";
     private static final String SQL_DELETE_FRIEND =
@@ -45,12 +43,6 @@ public class FriendshipDbStorage implements FriendshipStorage {
     @Transactional
     @Override
     public void addFriend(long userId, long friendId) {
-        if (!userStorage.exists(userId)) {
-            throw new NotFoundException("Пользователь с id=" + userId + " не найден");
-        }
-        if (!userStorage.exists(friendId)) {
-            throw new NotFoundException("Пользователь с id=" + friendId + " не найден");
-        }
 
         if (userId == friendId) {
             log.warn("Попытка добавить самого себя в друзья: {}", userId);
@@ -64,7 +56,7 @@ public class FriendshipDbStorage implements FriendshipStorage {
 
         /*
         Вижу противоречие в тз
-
+в
         1. Основной текст говорит: "дружба должна стать односторонней"
         должна добавляться только одна запись: userId -> friendId
 

@@ -18,4 +18,6 @@ public interface GenreStorage {
     Optional<Genre> findById(int id);
 
     boolean exists(int id);
+
+    boolean existsAll(Set<Integer> genreIds);
 }

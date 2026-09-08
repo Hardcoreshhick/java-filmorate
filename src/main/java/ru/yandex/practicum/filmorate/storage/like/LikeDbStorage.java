@@ -7,7 +7,6 @@ import org.springframework.stereotype.Repository;
 import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.mapper.FilmMapper;
 import ru.yandex.practicum.filmorate.model.Film;
-import ru.yandex.practicum.filmorate.storage.genre.GenreStorage;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -20,7 +19,6 @@ public class LikeDbStorage implements LikeStorage {
 
     private final JdbcTemplate jdbc;
     private final FilmMapper filmMapper;
-    private final GenreStorage genreStorage;
 
     private static final String SQL_INSERT_LIKE =
             "INSERT INTO likes (film_id, user_id) VALUES (?, ?)";
@@ -61,7 +59,6 @@ public class LikeDbStorage implements LikeStorage {
         }
         log.debug("Запрос популярных фильмов, count: {}", count);
         List<Film> films = jdbc.query(SQL_SELECT_POPULAR, filmMapper, count);
-        films.forEach(film -> film.setGenres(genreStorage.getGenresForFilm(film.getId())));
         log.debug("Найдено {} популярных фильмов", films.size());
         return films;
     }
