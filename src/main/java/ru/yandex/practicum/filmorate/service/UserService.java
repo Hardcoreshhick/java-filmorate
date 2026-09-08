@@ -1,26 +1,25 @@
 package ru.yandex.practicum.filmorate.service;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import ru.yandex.practicum.filmorate.exception.DuplicatedDataException;
 import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.exception.ValidationException;
 import ru.yandex.practicum.filmorate.model.User;
+import ru.yandex.practicum.filmorate.storage.friendship.FriendshipStorage;
 import ru.yandex.practicum.filmorate.storage.user.UserStorage;
 
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.Collection;
 
+@RequiredArgsConstructor
 @Service
 @Slf4j
 public class UserService {
 
     private final UserStorage userStorage;
-    private final Map<Long, Set<Long>> friends = new HashMap<>();
+    private final FriendshipStorage friendshipStorage;
 
-    public UserService(UserStorage userStorage) {
-        this.userStorage = userStorage;
-    }
 
     public Collection<User> findAll() {
         return userStorage.findAll();
@@ -85,72 +84,77 @@ public class UserService {
 
     public void delete(Long id) {
         log.info("Удаление пользователя: id={}", id);
+        validateUserExists(id);
         userStorage.delete(id);
-        friends.remove(id);
+        log.info("Пользователь с id {} удален", id);
     }
 
     public void addFriend(Long userId, Long friendId) {
-        log.debug("Попытка удалить друга: userId={}, friendId={}", userId, friendId);
-        log.debug("Текущие друзья пользователя {}: {}", userId, friends.get(userId));
+        log.debug("Попытка добавить друга: userId={}, friendId={}", userId, friendId);
 
         if (userId.equals(friendId)) {
             throw new ValidationException("Нельзя добавить самого себя в друзья");
         }
 
-        findById(userId);   // ← проверяем, что пользователь существует
-        findById(friendId);
+        validateUserExists(userId);
+        validateUserExists(friendId);
 
-        friends.computeIfAbsent(userId, k -> new HashSet<>()).add(friendId);
-        friends.computeIfAbsent(friendId, k -> new HashSet<>()).add(userId);
+        friendshipStorage.addFriend(userId, friendId);
 
         log.debug("Пользователь {} и {} стали друзьями", userId, friendId);
     }
 
-    /**
-     * Удаляет пользователя из друзей.
-     * Если пользователи не являются друзьями, метод ничего не делает (идемпотентность).
-     * Это сделано для прохождения тестов Postman, которые ожидают 204 No Content
-     * при попытке удалить несуществующую дружбу.
-     * В реальном проекте здесь мог бы выбрасываться 404 Not Found.
-     */
-    public void removeFriend(Long userId, Long friendId) {
-        findById(userId);
-        findById(friendId);
 
-        if (!friends.containsKey(userId) || !friends.get(userId).contains(friendId)) {
+    public void removeFriend(Long userId, Long friendId) {
+        if (userId.equals(friendId)) {
+            throw new ValidationException("Нельзя удалить самого себя из друзей");
+        }
+
+        validateUserExists(userId);
+        validateUserExists(friendId);
+
+        if (!friendshipStorage.isFriend(userId, friendId)) {
             log.debug("Попытка удалить несуществующую дружбу: {} и {}", userId, friendId);
             return;
         }
 
-        friends.get(userId).remove(friendId);
-        friends.get(friendId).remove(userId);
+        friendshipStorage.removeFriend(userId, friendId);
+
         log.debug("Пользователь {} и {} больше не друзья", userId, friendId);
     }
 
-    public Set<User> getFriends(Long userId) {
-        findById(userId);
+    public Collection<User> getFriends(Long userId) {
+        log.debug("Запрос друзей пользователя с id: {}", userId);
+        validateUserExists(userId);
 
-        if (!friends.containsKey(userId)) {
-            return Collections.emptySet();
-        }
+        Collection<User> friends = friendshipStorage.getFriends(userId);
 
-        return friends.get(userId).stream()
-                .map(this::findById)
-                .collect(Collectors.toSet());
+        log.info("Найдено {} друзей у пользователя с id: {}", friends.size(), userId);
+        return friends;
     }
 
-    public Set<User> getCommonFriends(Long userId, Long otherId) {
-        findById(userId);
-        findById(otherId);
+    public Collection<User> getCommonFriends(Long userId, Long otherId) {
+        log.debug("Запрос общих друзей у {} и {}", userId, otherId);
+        validateUserExists(userId);
+        validateUserExists(otherId);
 
-        Set<Long> userFriends = friends.getOrDefault(userId, Collections.emptySet());
-        Set<Long> otherFriends = friends.getOrDefault(otherId, Collections.emptySet());
+        Collection<User> commonFriends = friendshipStorage.getCommonFriends(userId, otherId);
+        log.info("Найдено {} общих друзей", commonFriends.size());
 
-        Set<Long> common = new HashSet<>(userFriends);
-        common.retainAll(otherFriends);
+        return commonFriends;
+    }
 
-        return common.stream()
-                .map(this::findById)
-                .collect(Collectors.toSet());
+    public void confirmFriend(Long userId, Long friendId) {
+        log.debug("Подтверждение дружбы: {} -> {}", userId, friendId);
+        validateUserExists(userId);
+        validateUserExists(friendId);
+        friendshipStorage.confirmFriend(userId, friendId);
+        log.info("Пользователь {} подтвердил дружбу с {}", userId, friendId);
+    }
+
+    private void validateUserExists(Long userId) {
+        if (!userStorage.exists(userId)) {
+            throw new NotFoundException("Пользователь с id=" + userId + " не найден");
+        }
     }
 }
