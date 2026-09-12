@@ -2,6 +2,7 @@ package ru.yandex.practicum.filmorate.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.model.MpaRating;
@@ -16,11 +17,12 @@ public class MpaService {
 
     private final MpaStorage mpaStorage;
 
+    @Cacheable(value = "mpa", key = "'all'")
     public List<MpaRating> findAll() {
         log.debug("Запрос всех рейтингов");
         List<MpaRating> ratings = mpaStorage.findAll();
         log.debug("Найдено {} рейтингов", ratings.size());
-        return ratings;
+        return List.copyOf(ratings);
     }
 
     public MpaRating findById(int id) {

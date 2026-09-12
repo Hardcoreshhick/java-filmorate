@@ -1,5 +1,6 @@
 package ru.yandex.practicum.filmorate.service;
 
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,6 +19,7 @@ import ru.yandex.practicum.filmorate.storage.user.UserStorage;
 
 import java.time.LocalDate;
 import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -33,6 +35,7 @@ public class FilmService {
     private final MpaDbStorage mpaDbStorage;
     private final GenreStorage genreStorage;
 
+    @Getter
     @Value("${filmorate.popular.default-count:10}")
     private int defaultPopularCount;
 
@@ -52,7 +55,6 @@ public class FilmService {
         return film;
     }
 
-    @CacheEvict(value = "popularFilms", allEntries = true)
     public Film create(Film film) {
         log.debug("Создание фильма: {}", film.getName());
         validateName(film);
@@ -71,7 +73,6 @@ public class FilmService {
         return created;
     }
 
-    @CacheEvict(value = "popularFilms", allEntries = true)
     public Film update(Film film) {
         log.debug("Обновление фильма с id: {}", film.getId());
 
@@ -124,7 +125,6 @@ public class FilmService {
         log.info("Фильм с id {} удален", id);
     }
 
-    @CacheEvict(value = "popularFilms", allEntries = true)
     public void addLike(long filmId, long userId) {
         log.debug("Пользователь {} ставит лайк фильму {}", userId, filmId);
 
@@ -135,7 +135,6 @@ public class FilmService {
         log.debug("Пользователь {} поставил лайк фильму {} ", userId, filmId);
     }
 
-    @CacheEvict(value = "popularFilms", allEntries = true)
     public void removeLike(long filmId, long userId) {
         log.debug("Пользователь {} убирает лайк фильму {}", userId, filmId);
         validateFilmExists(filmId);
@@ -144,7 +143,10 @@ public class FilmService {
         log.info("Пользователь {} убрал лайк с фильма {}", userId, filmId);
     }
 
-    @Cacheable(value = "popularFilms", key = "#count", unless = "#result == null || #result.isEmpty()")
+    @Cacheable(
+            value = "popularFilms",
+            key = "#count == null || #count <= 0 ? @filmService.defaultPopularCount : #count"
+    )
     public Collection<Film> getPopular(Integer count) {
         if (count == null || count <= 0) {
             count = defaultPopularCount;
@@ -152,7 +154,7 @@ public class FilmService {
         log.debug("Запрос популярных фильмов, count: {}", count);
         Collection<Film> films = likeStorage.getPopular(count);
         films.forEach(film -> film.setGenres(genreStorage.getGenresForFilm(film.getId())));
-        return films;
+        return List.copyOf(films);
     }
 
     private void validateFilmExists(Long id) {

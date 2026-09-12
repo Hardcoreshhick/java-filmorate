@@ -2,6 +2,7 @@ package ru.yandex.practicum.filmorate.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.model.Genre;
@@ -16,11 +17,13 @@ public class GenreService {
 
     private final GenreStorage genreStorage;
 
+    @Cacheable(value = "genres", key = "'all'")
     public List<Genre> findAll() {
         log.debug("Запрос всех жанров");
         List<Genre> genres = genreStorage.findAll();
         log.info("Найдено {} жанров", genres.size());
-        return genres;
+        log.info("Найдено {} жанров", genres.size());
+        return List.copyOf(genres);
     }
 
     public Genre findById(int id) {
