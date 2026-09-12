@@ -1,140 +1,218 @@
 package ru.yandex.practicum.filmorate.service;
 
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
-import ru.yandex.practicum.filmorate.exception.*;
+import ru.yandex.practicum.filmorate.exception.NotFoundException;
+import ru.yandex.practicum.filmorate.exception.ValidationException;
 import ru.yandex.practicum.filmorate.model.Film;
+import ru.yandex.practicum.filmorate.model.Genre;
 import ru.yandex.practicum.filmorate.storage.film.FilmStorage;
+import ru.yandex.practicum.filmorate.storage.genre.GenreStorage;
+import ru.yandex.practicum.filmorate.storage.like.LikeStorage;
+import ru.yandex.practicum.filmorate.storage.mpa.MpaDbStorage;
+import ru.yandex.practicum.filmorate.storage.user.UserStorage;
 
-import java.util.*;
+import java.time.LocalDate;
+import java.util.Collection;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
+@RequiredArgsConstructor
 @Slf4j
 @Service
 public class FilmService {
 
     private final FilmStorage filmStorage;
-    private final UserService userService;
-    private final Map<Long, Set<Long>> likes = new HashMap<>();
-    private List<Film> cachedPopularFilms;
-    private boolean cacheDirty = true;
+    private final UserStorage userStorage;
+    private final LikeStorage likeStorage;
+    private final MpaDbStorage mpaDbStorage;
+    private final GenreStorage genreStorage;
 
+    @Getter
     @Value("${filmorate.popular.default-count:10}")
     private int defaultPopularCount;
 
-    public FilmService(FilmStorage filmStorage, UserService userService) {
-        this.filmStorage = filmStorage;
-        this.userService = userService;
-    }
 
     public Collection<Film> findAll() {
-        return filmStorage.findAll();
+        log.debug("Запрос всех фильмов");
+        Collection<Film> films = filmStorage.findAll();
+        films.forEach(film -> film.setGenres(genreStorage.getGenresForFilm(film.getId())));
+        return films;
     }
 
     public Film findById(Long id) {
-        return filmStorage.findById(id)
+        log.debug("Поиск фильма по id {}", id);
+        Film film = filmStorage.findById(id)
                 .orElseThrow(() -> new NotFoundException("Фильм с id=" + id + " не найден"));
+        film.setGenres(genreStorage.getGenresForFilm(film.getId()));
+        return film;
     }
 
     public Film create(Film film) {
-        if (film.getName() == null || film.getName().isBlank()) {
-            throw new ValidationException("Название фильма не может быть пустым");
+        log.debug("Создание фильма: {}", film.getName());
+        validateName(film);
+        validateGenres(film);
+        validateReleaseDate(film);
+        validateDuration(film);
+        validateMpa(film);
+
+        Film created = filmStorage.create(film);
+
+        if (film.getGenres() != null && !film.getGenres().isEmpty()) {
+            genreStorage.addGenresToFilm(created.getId(), film.getGenres());
         }
 
-        log.info("Создание фильма: {}", film.getName());
-        return filmStorage.create(film);
+        log.info("Создан фильм с id: {}", created.getId());
+        return created;
     }
 
     public Film update(Film film) {
-        log.info("Обновление фильма: {}", film);
+        log.debug("Обновление фильма с id: {}", film.getId());
 
         if (film.getId() == null) {
-            log.warn("Попытка обновить фильм без id");
-            throw new ValidationException("Id фильма должен быть указан");
+            throw new ValidationException("id фильма должен быть указан");
         }
 
-        Film existing = findById(film.getId());  // ← если нет — FilmNotFoundException
+        validateFilmExists(film.getId());
+        Film existing = filmStorage.findById(film.getId())
+                .orElseThrow(() -> new NotFoundException("Фильм с id " + film.getId() + " не найден"));
 
-        if (film.getName() != null && !film.getName().isBlank()) {
+
+        if (film.getName() != null) {
+            validateName(film);
             existing.setName(film.getName());
         }
         if (film.getDescription() != null && !film.getDescription().isBlank()) {
             existing.setDescription(film.getDescription());
         }
         if (film.getReleaseDate() != null) {
+            validateReleaseDate(film);
             existing.setReleaseDate(film.getReleaseDate());
         }
-        if (film.getDuration() != null && film.getDuration() > 0) {
+        if (film.getDuration() != null) {
+            validateDuration(film);
             existing.setDuration(film.getDuration());
         }
+        if (film.getMpaRating() != null) {
+            validateMpa(film);
+            existing.setMpaRating(film.getMpaRating());
+        }
 
-        log.info("Обновление фильма: id={}", film.getId());
+        if (film.getGenres() != null && !film.getGenres().isEmpty()) {
+            validateGenres(film);
+            genreStorage.deleteGenresFromFilm(film.getId());
+            genreStorage.addGenresToFilm(film.getId(), film.getGenres());
+        } else {
+            genreStorage.deleteGenresFromFilm(film.getId());
+        }
+
+        log.info("Обновлён фильм с id: {}", film.getId());
         return filmStorage.update(existing);
     }
 
+    @CacheEvict(value = "popularFilms", allEntries = true)
     public void delete(Long id) {
-        log.info("Удаление фильма: id={}", id);
+        log.debug("Удаление фильма: id={}", id);
+        validateFilmExists(id);
         filmStorage.delete(id);
+        log.info("Фильм с id {} удален", id);
     }
 
     public void addLike(long filmId, long userId) {
-        userService.findById(userId);
-        Film film = findById(filmId);
-        likes.computeIfAbsent(filmId, k -> new HashSet<>()).add(userId);
-        cacheDirty = true;
-        log.debug("Пользователь {} поставил лайк фильму {} ({})", userId, filmId, film.getName());
+        log.debug("Пользователь {} ставит лайк фильму {}", userId, filmId);
+
+        validateFilmExists(filmId);
+        validateUserExists(userId);
+
+        likeStorage.addLike(filmId, userId);
+        log.debug("Пользователь {} поставил лайк фильму {} ", userId, filmId);
     }
 
     public void removeLike(long filmId, long userId) {
-        userService.findById(userId);
-        findById(filmId);
-
-        if (!likes.containsKey(filmId)) {
-            throw new NotFoundException("Лайк фильму " + filmId + " не найден");
-        }
-        Set<Long> filmLikes = likes.get(filmId);
-        if (!filmLikes.contains(userId)) {
-            throw new NotFoundException("Пользователь " + userId + " не ставил лайк фильму " + filmId);
-        }
-        filmLikes.remove(userId);
-        cacheDirty = true;
-        log.debug("Пользователь {} удалил лайк фильму {}", userId, filmId);
+        log.debug("Пользователь {} убирает лайк фильму {}", userId, filmId);
+        validateFilmExists(filmId);
+        validateUserExists(userId);
+        likeStorage.removeLike(filmId, userId);
+        log.info("Пользователь {} убрал лайк с фильма {}", userId, filmId);
     }
 
-    public int getLikesCount(long filmId) {
-        return likes.getOrDefault(filmId, Collections.emptySet()).size();
-    }
-
-    public List<Film> getPopularFilms(int count) {
-        if (count <= 0) {
-            log.debug("Передан некорректный count={}, используем значение по умолчанию: {}", count,
-                    defaultPopularCount);
+    @Cacheable(
+            value = "popularFilms",
+            key = "#count == null || #count <= 0 ? @filmService.defaultPopularCount : #count"
+    )
+    public Collection<Film> getPopular(Integer count) {
+        if (count == null || count <= 0) {
             count = defaultPopularCount;
         }
+        log.debug("Запрос популярных фильмов, count: {}", count);
+        Collection<Film> films = likeStorage.getPopular(count);
+        films.forEach(film -> film.setGenres(genreStorage.getGenresForFilm(film.getId())));
+        return List.copyOf(films);
+    }
 
-        if (!cacheDirty
-                && count == defaultPopularCount
-                && cachedPopularFilms != null
-                && !cachedPopularFilms.isEmpty()) {
-            log.debug("Возвращаем кешированный список популярных фильмов");
-            return cachedPopularFilms;
+    private void validateFilmExists(Long id) {
+        if (!filmStorage.exists(id)) {
+            throw new NotFoundException("Фильм с id=" + id + " не найден");
+        }
+    }
+
+    private void validateUserExists(Long userId) {
+        if (!userStorage.exists(userId)) {
+            throw new NotFoundException("Пользователь с id=" + userId + " не найден");
+        }
+    }
+
+    private void validateName(Film film) {
+        if (film.getName() == null || film.getName().isBlank()) {
+            throw new ValidationException("Название фильма не может быть пустым");
+        }
+    }
+
+    private void validateDuration(Film film) {
+        if (film.getDuration() == null || film.getDuration() <= 0) {
+            throw new ValidationException("Продолжительность должна быть положительным числом");
+        }
+    }
+
+    private void validateReleaseDate(Film film) {
+        if (film.getReleaseDate() != null &&
+                film.getReleaseDate().isBefore(LocalDate.of(1895, 12, 28))) {
+            throw new ValidationException("Дата релиза не может быть раньше 28 декабря 1895 года");
+        }
+    }
+
+    private void validateMpa(Film film) {
+        if (film.getMpaRating() != null && film.getMpaRating().getId() != null) {
+            if (!mpaDbStorage.exists(film.getMpaRating().getId())) {
+                throw new NotFoundException("Рейтинг с id " + film.getMpaRating().getId() + " не найден");
+            }
+        }
+    }
+
+    private void validateGenres(Film film) {
+        if (film.getGenres() == null || film.getGenres().isEmpty()) {
+            return;
         }
 
-        List<Film> result = filmStorage.findAll().stream()
-                .sorted((f1, f2) -> Integer.compare(
-                        getLikesCount(f2.getId()),
-                        getLikesCount(f1.getId())
-                ))
-                .limit(count)
-                .collect(Collectors.toList());
+        Set<Integer> genreIds = film.getGenres().stream()
+                .map(Genre::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
 
-        if (count == defaultPopularCount) {
-            cachedPopularFilms = result;
-            cacheDirty = false;
-            log.debug("Кеш популярных фильмов обновлён");
+        if (genreIds.isEmpty()) {
+            return;
         }
 
-        return result;
+        if (!genreStorage.existsAll(genreIds)) {
+            throw new NotFoundException("Один или несколько жанров не найдены");
+        }
+
     }
 }

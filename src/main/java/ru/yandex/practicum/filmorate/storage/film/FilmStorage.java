@@ -16,4 +16,6 @@ public interface FilmStorage {
 
     void delete(long id);
 
+    boolean exists(long id);
+
 }
