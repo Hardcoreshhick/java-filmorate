@@ -11,7 +11,6 @@ import ru.yandex.practicum.filmorate.model.User;
 import ru.yandex.practicum.filmorate.service.UserService;
 
 import java.util.Collection;
-import java.util.Set;
 
 @RestController
 @RequestMapping("/users")
@@ -51,7 +50,7 @@ public class UserController {
         log.info("Запрос на обновление пользователя с id={}", id);
         user.setId(id);
         User updated = userService.update(user);
-        log.info("Пользователь с id={} обновлён", id);  // ← добавить
+        log.info("Пользователь с id={} обновлён", id);
         return updated;
     }
 
@@ -66,6 +65,7 @@ public class UserController {
         if (user.getId() == null) {
             throw new ValidationException("Id должен быть указан");
         }
+        log.debug("Запрос на обновление пользователя (id в теле запроса): {}", user);
         return userService.update(user);
     }
 
@@ -97,18 +97,28 @@ public class UserController {
     }
 
     @GetMapping("/{id}/friends")
-    public Set<User> getFriends(@PathVariable @Positive Long id) {
+    public Collection<User> getFriends(@PathVariable @Positive Long id) {
         log.debug("Запрос на получение друзей пользователя {}", id);
         return userService.getFriends(id);
     }
 
     @GetMapping("/{id}/friends/common/{otherId}")
-    public Set<User> getCommonFriends(
+    public Collection<User> getCommonFriends(
             @PathVariable @Positive Long id,
             @PathVariable @Positive Long otherId
     ) {
         log.debug("Запрос на получение общих друзей пользователей {} и {}", id, otherId);
         return userService.getCommonFriends(id, otherId);
+    }
+
+    @PutMapping("/{id}/friends/{friendId}/confirm")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void confirmFriend(
+            @PathVariable @Positive Long id,
+            @PathVariable @Positive Long friendId
+    ) {
+        log.debug("Пользователь {} подтверждает дружбу с {}", id, friendId);
+        userService.confirmFriend(id, friendId);
     }
 
 }
